@@ -1,4 +1,11 @@
-"""Dashboard interactivo de retrasos de vuelos (tarea)."""
+"""Dashboard interactivo de retrasos de vuelos (tarea).
+
+Ejecutar en desarrollo:
+    python dashboard.py        ->  http://127.0.0.1:8050
+
+Ejecutar en produccion (lo hace la plataforma de despliegue):
+    gunicorn dashboard:server  ->  usa el objeto WSGI `server` de este modulo
+"""
 
 from pathlib import Path
 
@@ -9,6 +16,8 @@ from plotly.graph_objects import Figure
 
 # --------------------------------------------------------------------- datos
 DATA_FILE = Path(__file__).with_name("airline_data.csv")
+if not DATA_FILE.exists():
+    DATA_FILE = Path(__file__).parent / "tarea-dash" / "tarea-dash" / "airline_data.csv"
 
 df = pd.read_csv(
     DATA_FILE,
@@ -24,6 +33,7 @@ df = pd.read_csv(
 app = Dash(__name__)
 
 # -------------------------------------------------------------------- layout
+# RF1, RF2, RF3, RF10
 app.layout = html.Div(
     style={
         "fontFamily": "Segoe UI, Arial, sans-serif",
@@ -32,6 +42,7 @@ app.layout = html.Div(
         "minHeight": "100vh",
     },
     children=[
+        # RF1: Titulo
         html.H1(
             "Tablero de Control: Analisis de Retrasos de Vuelos",
             style={
@@ -41,6 +52,7 @@ app.layout = html.Div(
                 "fontWeight": "600",
             },
         ),
+        # RF2: Control de entrada
         html.Div(
             style={
                 "display": "flex",
@@ -76,6 +88,8 @@ app.layout = html.Div(
                 ),
             ],
         ),
+        # RF3 y RF10: Distribucion en bloques Flex
+        # Fila 1: Carrier y Weather
         html.Div(
             style={"display": "flex", "gap": "20px", "marginBottom": "20px"},
             children=[
@@ -101,6 +115,7 @@ app.layout = html.Div(
                 ),
             ],
         ),
+        # Fila 2: NAS y Security
         html.Div(
             style={"display": "flex", "gap": "20px", "marginBottom": "20px"},
             children=[
@@ -126,6 +141,7 @@ app.layout = html.Div(
                 ),
             ],
         ),
+        # Fila 3: Late Aircraft
         html.Div(
             style={"display": "flex", "justifyContent": "center"},
             children=[
@@ -144,9 +160,13 @@ app.layout = html.Div(
     ],
 )
 
-
-# ------------------------------------------------------------------ calculos
+# RF6: Calculo separado
 def compute_info(datos, entered_year):
+    """Devuelve 5 tablas (una por causa de retraso) para el ano pedido.
+
+    Cada tabla tiene las columnas: Month, Reporting_Airline y el promedio
+    de la causa correspondiente.
+    """
     df_year = datos[datos["Year"] == int(entered_year)]
 
     carrier_data = (
@@ -179,6 +199,7 @@ def compute_info(datos, entered_year):
 
 
 def _crear_figura_vacia(mensaje):
+    """Genera una figura vacia con anotacion de estado sin lanzar excepciones."""
     fig = Figure()
     fig.update_layout(
         title={"text": mensaje, "x": 0.5, "xanchor": "center"},
@@ -191,6 +212,7 @@ def _crear_figura_vacia(mensaje):
 
 
 # ------------------------------------------------------------------ callback
+# RF4, RF5, RF7
 @app.callback(
     [
         Output("carrier-plot", "figure"),
@@ -202,6 +224,7 @@ def _crear_figura_vacia(mensaje):
     Input("input-year", "value"),
 )
 def get_graph(entered_year):
+    # RF5: Manejo robusto de entradas nulas o no numericas
     if entered_year is None:
         fig_vacia = _crear_figura_vacia("Ingrese un ano valido para visualizar los datos")
         return fig_vacia, fig_vacia, fig_vacia, fig_vacia, fig_vacia
@@ -212,14 +235,17 @@ def get_graph(entered_year):
         fig_vacia = _crear_figura_vacia("El ano introducido no es valido")
         return fig_vacia, fig_vacia, fig_vacia, fig_vacia, fig_vacia
 
+    # Validar si el ano existe en el dataset
     if val_year not in df["Year"].values:
         fig_vacia = _crear_figura_vacia(f"No hay registros disponibles para el ano {val_year}")
         return fig_vacia, fig_vacia, fig_vacia, fig_vacia, fig_vacia
 
+    # RF6: Obtener datos agrupados
     carrier_data, weather_data, nas_data, security_data, late_data = compute_info(
         df, val_year
     )
 
+    # Configuracion de graficos (RF7)
     graficos_config = [
         (carrier_data, "CarrierDelay", f"Retraso promedio por Aerolinea (Carrier) - {val_year}"),
         (weather_data, "WeatherDelay", f"Retraso promedio por Clima (Weather) - {val_year}"),
@@ -255,30 +281,8 @@ def get_graph(entered_year):
 
 
 # --------------------------------------------------------------- produccion
+# RF9: Objeto WSGI para Gunicorn
 server = app.server
 
 if __name__ == "__main__":
     app.run(debug=True, port=8050)
-```[cite: 1, 3]
-
-5. Haz clic en el botón verde **Commit changes...** abajo a la derecha.
-
----
-
-### Paso 2: Verificar que `airline_data.csv` esté en la raíz de GitHub
-
-1. En la lista principal de archivos de ese mismo repositorio en GitHub, asegúrate de que el archivo `airline_data.csv` esté visible[cite: 3].
-2. Si no está: haz clic en **Add file** -> **Upload files**, arrastra `airline_data.csv` desde tu computadora y presiona **Commit changes**[cite: 3].
-
----
-
-### Paso 3: Esperar el redespliegue y probar
-
-1. Abre tu panel de **Render** y ve a la sección **Logs**[cite: 7].
-2. Verás que Render detectará automáticamente el commit guardado y empezará a desplegar (`Deploying...`)[cite: 3, 13].
-3. Espera 1 minuto hasta que vuelva a decir **`Your service is live`**[cite: 3, 13].
-4. Abre el enlace en una pestaña nueva o en una ventana de incógnito:  
-   `[https://programacion-analisis-de-datos.onrender.com](https://programacion-analisis-de-datos.onrender.com)`[cite: 2, 13]
-5. Presiona **Ctrl + F5** para forzar la recarga del navegador sin caché.
-
-Aparecerá el título principal, la caja para ingresar el año con el `2010` puesto por defecto y los 5 gráficos interactivos trazados[cite: 1, 3].
